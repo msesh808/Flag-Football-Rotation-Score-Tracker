@@ -107,6 +107,13 @@ tr:last-child td{border-bottom:0}
 .prow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) auto;gap:8px;align-items:start}
 .prow .w{grid-column:1/-1;color:var(--warn);font-size:13px}
 .prow button{padding:9px 12px}
+.avail{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0}
+.avail button{padding:7px 12px;border-radius:999px}
+.avail button[aria-pressed="true"]{background:var(--off-soft);border-color:var(--off)}
+.avail button[aria-pressed="false"]{background:transparent;color:var(--muted);text-decoration:line-through}
+.season tfoot td{border-top:2px solid var(--ink);border-bottom:0;font-weight:600}
+.season tr.cur td{background:var(--flag-soft)}
+.season button{padding:4px 10px}
 .slot span{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .slot select{font:600 19px var(--body);width:auto;max-width:100%;border:0;border-bottom:1px dashed var(--muted);border-radius:0;background:transparent;padding:2px 2px}
 .sheet{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;display:grid;gap:14px}
@@ -141,6 +148,7 @@ tr:last-child td{border-bottom:0}
   <div class="tabs" role="tablist">
     <button role="tab" data-tab="game" id="tab-game">Game</button>
     <button role="tab" data-tab="rotations" id="tab-rotations">Rotations</button>
+    <button role="tab" data-tab="season" id="tab-season">Season</button>
     <button role="tab" data-tab="sheet" id="tab-sheet">Print sheet</button>
     <button role="tab" data-tab="team" id="tab-team">Team setup</button>
   </div>
@@ -152,6 +160,18 @@ tr:last-child td{border-bottom:0}
       <button class="primary" id="go-team">Set up my team</button>
     </div>
 
+    <div class="panel" aria-label="Game">
+      <div class="fields">
+        <div class="field"><label for="game-pick">Game</label><select id="game-pick"></select></div>
+        <div class="field"><label for="game-date">Date</label><input id="game-date" type="date"></div>
+      </div>
+      <div>
+        <div class="label">Playing this game</div>
+        <div class="avail" id="avail"></div>
+        <p class="note" id="avail-note"></p>
+      </div>
+    </div>
+
     <div class="panel" aria-label="Scoreboard">
       <div class="score">
         <div class="team us">
@@ -159,16 +179,16 @@ tr:last-child td{border-bottom:0}
           <div class="sbtns" id="us-btns"></div>
         </div>
         <div class="team them">
-          <div class="top"><input class="tname" id="opp-name" aria-label="Opponent name" maxlength="30"><div class="pts" id="them-pts">0</div></div>
+          <div class="top"><input class="tname" id="opp-name" aria-label="Opponent name" placeholder="Opponent" maxlength="30"><div class="pts" id="them-pts">0</div></div>
           <div class="sbtns" id="them-btns"></div>
         </div>
       </div>
       <div class="row">
         <button id="undo">Undo last score</button>
-        <button class="primary" id="save-game">Save game and start next</button>
+        <button class="primary" id="end-game">End game</button>
         <button class="quiet" id="clear-score" data-confirm="Tap again to clear">Clear score</button>
+        <span id="final-note"></span>
       </div>
-      <div class="games" id="games"></div>
     </div>
 
     <div class="panel" aria-label="Current rotation">
@@ -198,6 +218,20 @@ tr:last-child td{border-bottom:0}
       </table></div>
       <p class="note" id="pt-note" style="margin-top:8px"></p>
     </div>
+  </section>
+
+  <!-- SEASON -->
+  <section class="tab" id="p-season" hidden>
+    <div>
+      <h2>Season</h2>
+      <p class="note" style="margin-top:4px">Up to 10 games. A result counts once you end the game on the Game tab. Tap a week to open it.</p>
+    </div>
+    <div class="tbl season"><table>
+      <thead><tr><th>Week</th><th>Date</th><th>Opponent</th><th class="n" id="th-us">Us</th><th class="n">Them</th><th>Result</th></tr></thead>
+      <tbody id="season-tb"></tbody>
+      <tfoot id="season-foot"></tfoot>
+    </table></div>
+    <div class="row"><button class="quiet" id="new-season" data-confirm="Tap again to erase all 10 games">Start a new season</button></div>
   </section>
 
   <!-- PRINT SHEET -->
@@ -375,17 +409,40 @@ function generate(S){
 
 <script>
 const KEY="ffboard.v1";
-const SAMPLE={example:true,team:"My Team",opp:"Opponent",td:6,format:5,
-  off:"Q, C, X, Y, Z",def:"S, CB1, CB2, R, LB",mode:"same",seriesPer:1,rotations:30,maxSit:1,seed:1,cur:0,
+const SAMPLE={example:true,team:"My Team",td:6,format:5,
+  off:"Q, C, X, Y, Z",def:"S, CB1, CB2, R, LB",mode:"same",seriesPer:1,rotations:30,maxSit:1,seed:1,
   players:[
     {name:"Avery",pos:"Q, CB1, CB2, S"},{name:"Blake",pos:"C, X, Y, LB"},{name:"Casey",pos:"Q, Z, C, R, S"},
     {name:"Devon",pos:"Y, Z, X, S, R"},{name:"Emery",pos:"Y, X, CB1, CB2, R"},{name:"Frankie",pos:"C, X, LB, CB1"},
-    {name:"Gray",pos:"Z, Y, S, R"},{name:"Harper",pos:"X, Y, LB, CB1, CB2"},{name:"Indy",pos:""}],
-  log:[],games:[],ops:[]};
+    {name:"Gray",pos:"Z, Y, S, R"},{name:"Harper",pos:"X, Y, LB, CB1, CB2"},{name:"Indy",pos:""},{name:"Jordan",pos:"X, Z, CB2, LB"}]};
 const clone=o=>JSON.parse(JSON.stringify(o));
 let S=(()=>{try{const j=JSON.parse(localStorage.getItem(KEY));if(j&&Array.isArray(j.players))return Object.assign(clone(SAMPLE),j)}catch(e){}return clone(SAMPLE)})();
-if(!FORMATS[+S.format]){const n=parseList(S.off).length;S.format=FORMATS[n]?n:5}
-if(!Array.isArray(S.log))S.log=[];if(!Array.isArray(S.games))S.games=[];if(!Array.isArray(S.ops))S.ops=[];
+const NGAMES=10;
+function blankGame(){return {opp:"",date:"",log:[],out:[],cur:0,ops:[],final:false}}
+/* bring any saved state up to the current shape: player ids, 10 game slots */
+function normalize(){
+  if(!FORMATS[+S.format]){const n=parseList(S.off).length;S.format=FORMATS[n]?n:5}
+  S.nextId=S.nextId|0;
+  S.players.forEach(p=>{if(!p.id)p.id=++S.nextId});
+  if(!Array.isArray(S.season)){
+    S.season=Array.from({length:NGAMES},blankGame);
+    const old=Array.isArray(S.games)?S.games.slice().reverse().slice(0,NGAMES-1):[];
+    old.forEach((g,i)=>{Object.assign(S.season[i],{opp:g.opp||"",final:true,legacy:{us:+g.us||0,them:+g.them||0}})});
+    const c=S.season[old.length];
+    if(Array.isArray(S["log"]))c.log=S["log"];if(S["opp"]&&S["opp"]!=="Opponent")c.opp=S["opp"];
+    c.cur=S["cur"]|0;if(Array.isArray(S["ops"]))c.ops=S["ops"];
+    S.g=old.length;
+    ["games","log","opp","cur","ops"].forEach(k=>{delete S[k]});
+  }
+  while(S.season.length<NGAMES)S.season.push(blankGame());
+  S.season.forEach(g=>{["log","out","ops"].forEach(k=>{if(!Array.isArray(g[k]))g[k]=[]});g.cur=g.cur|0;if(typeof g.opp!=="string")g.opp="";if(typeof g.date!=="string")g.date=""});
+  S.g=Math.max(0,Math.min(NGAMES-1,S.g|0));
+}
+normalize();
+const GM=()=>S.season[S.g];
+/* this game's roster: the main roster minus anyone marked out for the game */
+function gameState(){const out=GM().out;
+  return Object.assign({},S,{seed:(S.seed|0)+S.g*101,players:S.players.map(p=>out.includes(p.id)?{name:"",pos:p.pos}:p)})}
 let G=null;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -393,7 +450,7 @@ function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 const num=(v,lo,hi,d)=>{v=parseInt(v,10);return isNaN(v)?d:Math.max(lo,Math.min(hi,v))};
 
 /* ---------- tabs ---------- */
-const TABS=["game","rotations","sheet","team"];
+const TABS=["game","rotations","season","sheet","team"];
 function showTab(t){if(!TABS.includes(t))t="game";
   TABS.forEach(x=>{$("p-"+x).hidden=x!==t;$("tab-"+x).setAttribute("aria-selected",x===t)});
   try{sessionStorage.setItem("fftab",t)}catch(e){}}
@@ -408,27 +465,59 @@ function armConfirm(btn,fn){const label=btn.textContent;let timer=null;
 /* ---------- score ---------- */
 const TYPES=[["td","TD"],["p1","1 PT"],["p2","2 PT"]];
 const val=t=>t==="td"?num(S.td,1,9,6):t==="p1"?1:2;
-function tally(side){const c={td:0,p1:0,p2:0};S.log.forEach(e=>{if(e.s===side)c[e.t]++});
-  c.total=c.td*val("td")+c.p1+c.p2*2;return c}
+function tally(side,g){g=g||GM();const c={td:0,p1:0,p2:0};g.log.forEach(e=>{if(e.s===side)c[e.t]++});
+  c.total=c.td*val("td")+c.p1+c.p2*2+(g.legacy?(+g.legacy[side]||0):0);return c}
+function gameScore(g){const us=tally("us",g).total,them=tally("them",g).total;
+  return {us,them,started:g.log.length>0||!!g.legacy,res:!g.final?"":us>them?"W":us<them?"L":"T"}}
+const fmtDate=d=>{if(!d)return"";const t=new Date(d+"T12:00:00");return isNaN(t)?"":t.toLocaleDateString(undefined,{month:"short",day:"numeric"})};
 function renderScore(){
+  const g=GM(),sc=gameScore(g);
   $("us-name").textContent=S.team||"My Team";
-  if(document.activeElement!==$("opp-name"))$("opp-name").value=S.opp;
+  if(document.activeElement!==$("opp-name"))$("opp-name").value=g.opp;
   for(const side of ["us","them"]){const c=tally(side);$(side+"-pts").textContent=c.total;
-    $(side+"-btns").innerHTML=TYPES.map(([t,l])=>`<button data-s="${side}" data-t="${t}" aria-label="Add ${l} for ${side==="us"?"your team":"opponent"}"><b>${l}</b><span>+${val(t)} · ${c[t]} so far</span></button>`).join("")}
-  $("undo").disabled=!S.log.length;$("save-game").disabled=!S.log.length;
-  let w=0,l=0,t=0;S.games.forEach(g=>{g.us>g.them?w++:g.us<g.them?l++:t++});
-  $("games").innerHTML=S.games.length?`<div class="label">Saved games · ${w}–${l}${t?"–"+t:""}</div>`+
-    S.games.map((g,i)=>`<div class="game"><span>${esc(g.team)} <b>${g.us}</b>, ${esc(g.opp)} <b>${g.them}</b> <span class="sit">${esc(g.date||"")}</span></span><button data-del="${i}" aria-label="Remove this game">✕</button></div>`).join(""):"";
+    $(side+"-btns").innerHTML=TYPES.map(([t,l])=>`<button data-s="${side}" data-t="${t}"${g.final?" disabled":""} aria-label="Add ${l} for ${side==="us"?"your team":"opponent"}"><b>${l}</b><span>+${val(t)} · ${c[t]} so far</span></button>`).join("")}
+  $("undo").disabled=!g.log.length||g.final;
+  $("end-game").textContent=g.final?"Reopen game":"End game";
+  $("final-note").innerHTML=g.final?`<span class="tag">Final · ${sc.res==="W"?"Win":sc.res==="L"?"Loss":"Tie"} ${sc.us}–${sc.them}</span>`:"";
 }
-document.querySelector(".score").addEventListener("click",e=>{const b=e.target.closest("button[data-t]");if(!b)return;
-  S.log.push({s:b.dataset.s,t:b.dataset.t});save();renderScore()});
-$("undo").onclick=()=>{S.log.pop();save();renderScore()};
-$("opp-name").addEventListener("input",e=>{S.opp=e.target.value;save()});
-$("save-game").onclick=()=>{const a=tally("us"),b=tally("them");
-  S.games.unshift({team:S.team||"My Team",opp:(S.opp||"").trim()||"Opponent",us:a.total,them:b.total,date:new Date().toLocaleDateString(undefined,{month:"short",day:"numeric"})});
-  S.log=[];S.cur=0;S.opp="Opponent";save();renderScore();renderLineup()};
-armConfirm($("clear-score"),()=>{S.log=[];save();renderScore()});
-$("games").addEventListener("click",e=>{const b=e.target.closest("[data-del]");if(!b)return;S.games.splice(+b.dataset.del,1);save();renderScore()});
+document.querySelector(".score").addEventListener("click",e=>{const b=e.target.closest("button[data-t]");if(!b||GM().final)return;
+  GM().log.push({s:b.dataset.s,t:b.dataset.t});save();renderScore();renderGameBar();renderSeason()});
+$("undo").onclick=()=>{GM().log.pop();save();renderScore();renderGameBar();renderSeason()};
+$("opp-name").addEventListener("input",e=>{GM().opp=e.target.value;save();renderGameBar();renderSeason();renderSheet()});
+$("end-game").onclick=()=>{const g=GM();
+  if(g.final){g.final=false;save();regen();return}
+  g.final=true;
+  if(!g.date){const d=new Date();g.date=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+  const nx=S.season.findIndex((x,i)=>i>S.g&&!x.final);if(nx>=0)S.g=nx;
+  save();regen()};
+armConfirm($("clear-score"),()=>{const g=GM();g.log=[];delete g.legacy;g.final=false;save();regen()});
+
+/* ---------- game picker, who is playing, season ---------- */
+function renderGameBar(){
+  $("game-pick").innerHTML=S.season.map((g,i)=>{const sc=gameScore(g);
+    return `<option value="${i}"${i===S.g?" selected":""}>Week ${i+1}${g.opp.trim()?" · "+esc(g.opp.trim()):""}${g.final?" · "+sc.res+" "+sc.us+"–"+sc.them:""}</option>`}).join("");
+  if(document.activeElement!==$("game-date"))$("game-date").value=GM().date;
+  const out=GM().out,named=S.players.filter(p=>p.name.trim());
+  $("avail").innerHTML=named.map(p=>`<button data-id="${p.id}" aria-pressed="${!out.includes(p.id)}">${esc(p.name.trim())}</button>`).join("");
+  const n=named.filter(p=>!out.includes(p.id)).length;
+  $("avail-note").textContent=n+" of "+named.length+" playing. Tap a player who is missing this game. They stay on your roster for the other weeks.";
+}
+$("game-pick").addEventListener("change",e=>{S.g=+e.target.value;save();regen()});
+$("game-date").addEventListener("input",e=>{GM().date=e.target.value;save();renderSeason();renderSheet()});
+$("avail").addEventListener("click",e=>{const b=e.target.closest("[data-id]");if(!b)return;const id=+b.dataset.id,g=GM(),i=g.out.indexOf(id);
+  if(i>=0)g.out.splice(i,1);else g.out.push(id);g.ops=[];save();regen()});
+function renderSeason(){
+  let w=0,l=0,t=0,pf=0,pa=0;
+  $("th-us").textContent=S.team||"Us";
+  $("season-tb").innerHTML=S.season.map((g,i)=>{const sc=gameScore(g);
+    if(g.final){sc.res==="W"?w++:sc.res==="L"?l++:t++;pf+=sc.us;pa+=sc.them}
+    const show=g.final||sc.started,res=g.final?(sc.res==="W"?"Win":sc.res==="L"?"Loss":"Tie"):sc.started?"In progress":"";
+    return `<tr class="${i===S.g?"cur":""}"><td><button data-g="${i}">Week ${i+1}</button></td><td>${esc(fmtDate(g.date))}</td><td>${esc(g.opp.trim())}</td><td class="n">${show?sc.us:""}</td><td class="n">${show?sc.them:""}</td><td>${g.final?`<span class="tag">${res}</span>`:res}</td></tr>`}).join("");
+  const d=pf-pa;
+  $("season-foot").innerHTML=`<tr><td colspan="3">Season tally: ${w} ${w===1?"win":"wins"}, ${l} ${l===1?"loss":"losses"}${t?", "+t+(t===1?" tie":" ties"):""}</td><td class="n">${pf}</td><td class="n">${pa}</td><td>${d>0?"+":""}${d} points</td></tr>`;
+}
+$("season-tb").addEventListener("click",e=>{const b=e.target.closest("[data-g]");if(!b)return;S.g=+b.dataset.g;save();regen();showTab("game");window.scrollTo({top:0})});
+armConfirm($("new-season"),()=>{S.season=Array.from({length:NGAMES},blankGame);S.g=0;save();regen()});
 
 /* ---------- lineup ---------- */
 const unitWord=()=>G&&G.split?"series":"rotations";
@@ -447,7 +536,7 @@ function finalize(){
   if(!G||G.error)return;
   const idx2k={};G.pl.forEach((p,k)=>{idx2k[p.i]=k});
   G.rows.forEach(r=>{r.edited=false});
-  S.ops.forEach(op=>{const r=G.rows[op.r],k=idx2k[op.p];if(!r||k===undefined)return;
+  GM().ops.forEach(op=>{const r=G.rows[op.r],k=idx2k[op.p];if(!r||k===undefined)return;
     const slots=r[op.s];if(!slots||!slots[op.i])return;const cur=slots[op.i].k;if(cur===k)return;
     const j=slots.findIndex(x=>x.k===k);
     if(j>=0){slots[j].k=cur;slots[op.i].k=k}
@@ -467,27 +556,27 @@ function finalize(){
 }
 function renderLineup(){
   if(!G||G.error){$("count").textContent="No lineup yet";$("prev").disabled=$("next").disabled=true;
-    $("lineup").innerHTML=`<div class="err">${esc(G?G.error:"")} Fix it in Team setup.</div>`;return}
-  if(S.cur>=G.R)S.cur=G.R-1;if(S.cur<0)S.cur=0;
-  const r=G.rows[S.cur];
-  $("count").innerHTML=`Rotation ${S.cur+1} <small>of ${G.R}</small>`;
-  $("prev").disabled=S.cur===0;$("next").disabled=S.cur===G.R-1;
+    $("lineup").innerHTML=`<div class="err">${esc(G?G.error:"")} ${GM().out.length?"Mark more players as playing this game, or fix it in Team setup.":"Fix it in Team setup."}</div>`;return}
+  if(GM().cur>=G.R)GM().cur=G.R-1;if(GM().cur<0)GM().cur=0;
+  const r=G.rows[GM().cur];
+  $("count").innerHTML=`Rotation ${GM().cur+1} <small>of ${G.R}</small>`;
+  $("prev").disabled=GM().cur===0;$("next").disabled=GM().cur===G.R-1;
   let h=`<div class="sides">${sideHtml(r,"o")}${sideHtml(r,"d")}</div>`;
   if(!G.split){h+=`<p class="sit" style="margin:10px 0 0">${r.sat.length?"Sitting: <b>"+r.sat.map(x=>esc(G.names[x])).join(", ")+"</b>":"Nobody sits."}`+
-    (r.stay.length&&r.sat.length?`<br>Stays on for rotation ${S.cur+2}: <b>${r.stay.map(x=>esc(G.names[x])).join(", ")}</b>`:"")+`</p>`}
+    (r.stay.length&&r.sat.length?`<br>Stays on for rotation ${GM().cur+2}: <b>${r.stay.map(x=>esc(G.names[x])).join(", ")}</b>`:"")+`</p>`}
   h+=`<p class="sit" style="margin:10px 0 0">Tap a name to change who plays that spot.${r.edited?' <span class="tag">changed by hand</span> <button id="reset-rot" style="padding:4px 10px;margin-left:6px">Undo changes to this rotation</button>':""}</p>`;
   $("lineup").innerHTML=h;
-  document.querySelectorAll("#grid .card").forEach((c,i)=>c.classList.toggle("cur",i===S.cur));
+  document.querySelectorAll("#grid .card").forEach((c,i)=>c.classList.toggle("cur",i===GM().cur));
 }
 $("lineup").addEventListener("change",e=>{const el=e.target.closest("select[data-s]");if(!el)return;
-  S.ops.push({r:S.cur,s:el.dataset.s,i:+el.dataset.i,p:+el.value});save();regen()});
-$("lineup").addEventListener("click",e=>{if(!e.target.closest("#reset-rot"))return;S.ops=S.ops.filter(o=>o.r!==S.cur);save();regen()});
-$("prev").onclick=()=>{if(S.cur>0){S.cur--;save();renderLineup()}};
-$("next").onclick=()=>{if(G&&!G.error&&S.cur<G.R-1){S.cur++;save();renderLineup()}};
+  GM().ops.push({r:GM().cur,s:el.dataset.s,i:+el.dataset.i,p:+el.value});save();regen()});
+$("lineup").addEventListener("click",e=>{if(!e.target.closest("#reset-rot"))return;GM().ops=GM().ops.filter(o=>o.r!==GM().cur);save();regen()});
+$("prev").onclick=()=>{if(GM().cur>0){GM().cur--;save();renderLineup()}};
+$("next").onclick=()=>{if(G&&!G.error&&GM().cur<G.R-1){GM().cur++;save();renderLineup()}};
 
 function renderRotations(){
   if(!G||G.error){$("grid").innerHTML=`<div class="err">${esc(G?G.error:"")} Fix it in Team setup.</div>`;$("tb").innerHTML="";$("rot-note").textContent="";$("pt-note").textContent="";return}
-  $("rot-note").innerHTML=esc(switchText())+" Tap a rotation to open it on the Game tab."+(G.split?"":' <span class="tag">stays</span> marks players who stay on into the next rotation.');
+  $("rot-note").innerHTML="Week "+(S.g+1)+" lineups. "+esc(switchText())+" Tap a rotation to open it on the Game tab."+(G.split?"":' <span class="tag">stays</span> marks players who stay on into the next rotation.');
   $("grid").innerHTML=G.rows.map((r,i)=>{const line=(s)=>`<b>${esc(s.pos)}</b><span>${esc(G.names[s.k])}${r.stay.includes(s.k)?' <span class="tag">stays</span>':""}</span>`;
     const sit=a=>a&&a.length?`<div class="s">Sit: ${a.map(x=>esc(G.names[x])).join(", ")}</div>`:"";
     return `<button class="card" data-i="${i}"><h3>Rotation ${i+1}${r.edited?' <span class="tag">changed</span>':""}</h3><div class="mini"><div class="h o">Offense</div>${r.o.map(line).join("")}${G.split?sit(r.satO):""}<div class="h d">Defense</div>${r.d.map(line).join("")}${G.split?sit(r.satD):sit(r.sat)}</div></button>`}).join("");
@@ -498,15 +587,15 @@ function renderRotations(){
   if(G.bench>0&&G.eff>G.wantSit)n+=" With "+G.bench+" players sitting each rotation, the shortest possible wait is "+G.eff+" "+unitWord()+" in a row.";
   $("pt-note").textContent=n;
 }
-$("grid").addEventListener("click",e=>{const c=e.target.closest(".card");if(!c)return;S.cur=+c.dataset.i;save();renderLineup();showTab("game");window.scrollTo({top:0})});
+$("grid").addEventListener("click",e=>{const c=e.target.closest(".card");if(!c)return;GM().cur=+c.dataset.i;save();renderLineup();showTab("game");window.scrollTo({top:0})});
 
 /* ---------- print sheet ---------- */
 function renderSheet(){
   if(!G||G.error){$("sheet").innerHTML=`<div class="err">${esc(G?G.error:"")} Fix it in Team setup.</div>`;return}
-  const opp=(S.opp||"").trim(),oppName=opp&&opp!=="Opponent"?opp:"____________________";
+  const opp=(GM().opp||"").trim(),oppName=opp||"____________________",dt=fmtDate(GM().date)||"____________";
   const box=n=>`<div class="sbox">${esc(n)}<div class="cells"><div>TD</div><div>1 PT</div><div>2 PT</div><div>Final</div></div></div>`;
   const nm=a=>a.map(x=>esc(G.names[x])).join(", ");
-  $("sheet").innerHTML=`<h2>${esc(S.team||"My Team")} vs ${esc(oppName)} &nbsp;·&nbsp; Date ____________</h2>`+
+  $("sheet").innerHTML=`<h2>Week ${S.g+1}: ${esc(S.team||"My Team")} vs ${esc(oppName)} &nbsp;·&nbsp; Date ${esc(dt)}</h2>`+
     `<div class="boxes">${box(S.team||"My Team")}${box(oppName)}</div>`+
     `<p class="note">${esc(switchText())} Tally each score in its box and check off rotations as you go.</p>`+
     `<div class="tbl"><table><thead><tr><th>#</th>${G.OFF.map(p=>`<th>${esc(p)}</th>`).join("")}${G.DEF.map(p=>`<th>${esc(p)}</th>`).join("")}<th>Sitting</th><th>Done</th></tr></thead><tbody>`+
@@ -524,45 +613,46 @@ function renderRoster(){
 function fillForm(){$("f-format").value=String(formatOf(S));$("f-team").value=S.team;$("f-td").value=S.td;$("f-off").value=S.off;$("f-def").value=S.def;
   $("f-mode").value=S.mode;$("f-per").value=S.seriesPer;$("f-rot").value=S.rotations;$("f-sit").value=S.maxSit}
 let timer=null;
-function changed(kind){S.example=false;if(kind!=="name")S.ops=[];save();clearTimeout(timer);timer=setTimeout(regen,250)}
+function changed(kind){S.example=false;if(kind!=="name")S.season.forEach(g=>{g.ops=[]});save();clearTimeout(timer);timer=setTimeout(regen,250)}
 $("roster").addEventListener("input",e=>{const el=e.target;if(el.dataset.f){S.players[+el.dataset.i][el.dataset.f]=el.value;changed(el.dataset.f==="name"?"name":"")}});
 $("roster").addEventListener("click",e=>{const b=e.target.closest("[data-rm]");if(!b)return;S.players.splice(+b.dataset.rm,1);renderRoster();changed()});
-$("f-format").addEventListener("change",e=>{const f=+e.target.value;S.format=f;S.off=FORMATS[f].off;S.def=FORMATS[f].def;S.cur=0;fillForm();changed("")});
-$("add-player").onclick=()=>{if(S.players.length>=FORMATS[formatOf(S)].max)return;S.players.push({name:"",pos:""});renderRoster();changed();const el=$("pn-"+(S.players.length-1));if(el)el.focus()};
+$("f-format").addEventListener("change",e=>{const f=+e.target.value;S.format=f;S.off=FORMATS[f].off;S.def=FORMATS[f].def;GM().cur=0;fillForm();changed("")});
+$("add-player").onclick=()=>{if(S.players.length>=FORMATS[formatOf(S)].max)return;S.players.push({name:"",pos:"",id:++S.nextId});renderRoster();changed();const el=$("pn-"+(S.players.length-1));if(el)el.focus()};
 [["f-team","team"],["f-off","off"],["f-def","def"],["f-mode","mode"]].forEach(([id,k])=>$(id).addEventListener("input",e=>{S[k]=e.target.value;changed(k==="team"?"name":"")}));
 [["f-td","td",1,9,6],["f-per","seriesPer",1,6,1],["f-rot","rotations",1,60,30],["f-sit","maxSit",1,6,1]].forEach(([id,k,lo,hi,d])=>{
   $(id).addEventListener("input",e=>{S[k]=num(e.target.value,lo,hi,d);changed()});
   $(id).addEventListener("blur",e=>{e.target.value=S[k]})});
-$("shuffle").onclick=()=>{S.seed=(S.seed|0)+1;S.cur=0;S.ops=[];save();regen()};
+$("shuffle").onclick=()=>{S.seed=(S.seed|0)+1;S.season.forEach(g=>{g.cur=0;g.ops=[]});save();regen()};
 $("export").onclick=()=>{try{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:"application/json"}));
   a.download=(S.team||"team").replace(/[^a-z0-9]+/gi,"-").toLowerCase()+"-rotation-board.json";document.body.appendChild(a);a.click();a.remove();
   $("backup-msg").textContent="Backup saved to your downloads."}catch(e){$("backup-msg").textContent="Could not save a backup on this device."}};
 $("import-btn").onclick=()=>$("import").click();
 $("import").addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();
   rd.onload=()=>{try{const j=JSON.parse(rd.result);if(!j||!Array.isArray(j.players))throw 0;
-      S=Object.assign(clone(SAMPLE),j);["log","games","ops"].forEach(k=>{if(!Array.isArray(S[k]))S[k]=[]});
+      S=Object.assign(clone(SAMPLE),j);normalize();
       save();renderRoster();fillForm();regen();$("backup-msg").textContent="Backup loaded."}
     catch(err){$("backup-msg").textContent="That file is not a Rotation Board backup."}
     e.target.value=""};
   rd.readAsText(f)});
-armConfirm($("blank"),()=>{S.ops=[];S.players=Array.from({length:formatOf(S)},()=>({name:"",pos:""}));S.example=false;S.cur=0;save();renderRoster();regen();const el=$("pn-0");if(el)el.focus()});
+armConfirm($("blank"),()=>{S.season.forEach(g=>{g.ops=[];g.out=[];g.cur=0});S.players=Array.from({length:10},()=>({name:"",pos:"",id:++S.nextId}));S.example=false;save();renderRoster();regen();const el=$("pn-0");if(el)el.focus()});
 
 /* ---------- regenerate + paint ---------- */
 function regen(){
-  G=generate(S);finalize();
+  G=generate(gameState());finalize();
+  const known=G.OFF.concat(G.DEF),rosterN=S.players.filter(p=>p.name.trim()).length;
   $("banner").hidden=!S.example;
   $("title").textContent=(S.team&&S.team!=="My Team"?S.team+" ":"Flag Football ")+"Rotation Board";
   $("pos-note").textContent=G.fmt+"v"+G.fmt+" uses "+G.fmt+" positions on each side. Rename them to match your playbook, separated by commas, and keep "+G.fmt+" in each list.";
   $("add-player").disabled=S.players.length>=G.MAXP;
-  $("subtitle").textContent=G.fmt+"v"+G.fmt+" · "+G.N+" player"+(G.N===1?"":"s")+" · "+switchText();
+  $("subtitle").textContent=G.fmt+"v"+G.fmt+" · "+rosterN+" player"+(rosterN===1?"":"s")+" · "+switchText();
   $("team-err").hidden=!G.error;$("team-err").textContent=G.error||"";
-  $("pcount").textContent="· "+G.N+" of "+G.MAXP+" allowed";
+  $("pcount").textContent="· "+rosterN+" of "+G.MAXP+" allowed";
   const mode=S.mode==="split",n=num(S.seriesPer,1,6,1);
   $("per-help").textContent=mode?"A new group comes on after "+n+" series.":"Each group plays "+n+" offensive and "+n+" defensive series.";
   $("sit-help").textContent=mode?"Counted in series.":"Counted in rotations.";
-  S.players.forEach((p,i)=>{const w=$("pw-"+i);if(!w)return;const u=G.unknown[i];w.hidden=!u;
+  S.players.forEach((p,i)=>{const w=$("pw-"+i);if(!w)return;const uu=p.name.trim()?parseWants(p.pos,known).filter(x=>!known.includes(x)):[],u=uu.length?uu:null;w.hidden=!u;
     w.textContent=u?"Not in your position lists: "+u.join(", ")+". Check the spelling or add it under Positions.":""});
-  renderScore();renderRotations();renderLineup();renderSheet();
+  renderGameBar();renderScore();renderRotations();renderLineup();renderSheet();renderSeason();
 }
 renderRoster();fillForm();regen();
 let start="game";try{start=sessionStorage.getItem("fftab")||"game"}catch(e){}
