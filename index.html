@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1f3a2b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Rotations">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>Flag Football Rotation Board</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: three tabs. Game = scoreboard over the current lineup. Rotations = full schedule + playing time. Team = roster and settings. */
+:root{
+  --bg:#eef1ec; --panel:#ffffff; --ink:#1b231d; --muted:#5f6b62; --line:#d4dbd3;
+  --off:#1f5fa8; --off-soft:#e3edf8; --def:#b8421f; --def-soft:#f8e7e0; --flag:#e0a30b; --flag-soft:#fbf1d4; --flag-ink:#2a2105;
+  --warn:#a23b12; --warn-soft:#fbe9df;
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#131915; --panel:#1c241f; --ink:#e7ece6; --muted:#9aa79e; --line:#2f3a33;
+  --off:#7fb0ea; --off-soft:#1b2a3b; --def:#ef8a66; --def-soft:#3a231b; --flag:#f2c14b; --flag-soft:#3a3016; --flag-ink:#2a2105;
+  --warn:#f0a07c; --warn-soft:#3a231b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#131915; --panel:#1c241f; --ink:#e7ece6; --muted:#9aa79e; --line:#2f3a33;
+  --off:#7fb0ea; --off-soft:#1b2a3b; --def:#ef8a66; --def-soft:#3a231b; --flag:#f2c14b; --flag-soft:#3a3016; --flag-ink:#2a2105;
+  --warn:#f0a07c; --warn-soft:#3a231b; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45}
+.wrap{max-width:1100px;margin:0 auto;padding-inline:16px;padding-block:24px 48px;display:grid;gap:20px}
+h1,h2,h3{font-family:var(--display);font-weight:700;letter-spacing:.01em;text-wrap:balance;margin:0}
+h1{font-size:clamp(28px,6vw,40px);line-height:1}
+h2{font-size:24px}
+h3{font-size:18px}
+.sub{color:var(--muted);margin:6px 0 0}
+.label{font-family:var(--display);font-weight:600;text-transform:uppercase;letter-spacing:.08em;font-size:13px}
+.note{color:var(--muted);font-size:14px;max-width:70ch;margin:0}
+.tabs{display:flex;gap:6px;border-bottom:2px solid var(--line);flex-wrap:wrap}
+.tabs button{border:0;border-radius:8px 8px 0 0;background:transparent;font:600 18px var(--display);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:10px 16px;margin-bottom:-2px;border-bottom:3px solid transparent;min-width:0}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--flag)}
+button{font:600 15px var(--body);border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;padding:10px 14px;cursor:pointer}
+button:hover{border-color:var(--muted)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--flag);outline-offset:2px}
+button:disabled{opacity:.4;cursor:default}
+button.primary{background:var(--flag);border-color:var(--flag);color:var(--flag-ink)}
+button.quiet{background:transparent}
+input,select{font:500 15px var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;min-width:0;width:100%;box-sizing:border-box}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:14px}
+.tab{display:grid;gap:20px}
+.banner{background:var(--flag-soft);border:1px solid var(--flag);border-radius:8px;padding:10px 14px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.err{background:var(--warn-soft);border:1px solid var(--warn);color:var(--ink);border-radius:8px;padding:10px 14px}
+/* scoreboard */
+.score{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:560px){.score{grid-template-columns:1fr}}
+.team{border-radius:8px;padding:12px;display:grid;gap:8px}
+.team.us{background:var(--off-soft)} .team.them{background:var(--def-soft)}
+.team .top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.team .tname{font-family:var(--display);font-weight:700;font-size:22px;min-width:0;overflow-wrap:anywhere}
+.team.us .tname{color:var(--off)}
+.team input.tname{color:var(--def);background:transparent;border-color:transparent;border-bottom:1px dashed var(--def);border-radius:0;padding:2px 0}
+.pts{font-family:var(--display);font-weight:700;font-size:56px;line-height:1;font-variant-numeric:tabular-nums}
+.sbtns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.sbtns button{background:var(--panel);padding:10px 4px;display:grid;gap:2px;justify-items:center}
+.sbtns b{font-family:var(--display);font-size:20px;line-height:1}
+.sbtns span{font-size:12px;color:var(--muted);font-weight:500;font-variant-numeric:tabular-nums}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.games{display:grid;gap:6px}
+.game{display:flex;justify-content:space-between;gap:10px;align-items:center;border-top:1px solid var(--line);padding-top:6px;font-variant-numeric:tabular-nums}
+.game button{padding:4px 10px}
+/* lineup */
+.nav{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.count{font-family:var(--display);font-weight:700;font-size:34px;line-height:1;font-variant-numeric:tabular-nums}
+.count small{font-size:18px;color:var(--muted);font-weight:600}
+.sides{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:640px){.sides{grid-template-columns:1fr}}
+.side{border-radius:8px;padding:12px 14px;display:grid;gap:6px;align-content:start}
+.side.o{background:var(--off-soft)} .side.d{background:var(--def-soft)}
+.side.o .label{color:var(--off)} .side.d .label{color:var(--def)}
+.slot{display:grid;grid-template-columns:64px 1fr;align-items:baseline;gap:8px;font-size:19px}
+.slot b{font-family:var(--display);font-size:17px;color:var(--muted);overflow-wrap:anywhere}
+.slot span{font-weight:600;overflow-wrap:anywhere}
+.sit{font-size:14px;color:var(--muted)}
+.tag{display:inline-block;background:var(--flag-soft);border:1px solid var(--flag);border-radius:999px;padding:1px 8px;font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:grid;gap:8px;text-align:left;align-content:start}
+.card.cur{border-color:var(--flag);box-shadow:0 0 0 2px var(--flag)}
+.mini{display:grid;grid-template-columns:44px 1fr;gap:1px 6px;font-size:13.5px;font-weight:500}
+.mini b{font-family:var(--display);font-weight:600;color:var(--muted)}
+.mini .h{grid-column:1/-1;font-family:var(--display);text-transform:uppercase;letter-spacing:.08em;font-size:12px;margin-top:2px}
+.mini .h.o{color:var(--off)} .mini .h.d{color:var(--def)}
+.mini .s{grid-column:1/-1;color:var(--muted);font-size:12.5px;font-weight:400}
+.tbl{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;min-width:520px}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line)}
+th{font-family:var(--display);font-weight:600;text-transform:uppercase;letter-spacing:.06em;font-size:13px;color:var(--muted)}
+td.n,th.n{text-align:right}
+tr:last-child td{border-bottom:0}
+/* team setup */
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.field{display:grid;gap:4px;min-width:0}
+.field label,.rhead{font-family:var(--display);font-weight:600;text-transform:uppercase;letter-spacing:.06em;font-size:13px;color:var(--muted)}
+.field small{color:var(--muted);font-size:13px}
+.roster{display:grid;gap:8px}
+.prow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr) auto;gap:8px;align-items:start}
+.prow .w{grid-column:1/-1;color:var(--warn);font-size:13px}
+.prow button{padding:9px 12px}
+.slot span{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.slot select{font:600 19px var(--body);width:auto;max-width:100%;border:0;border-bottom:1px dashed var(--muted);border-radius:0;background:transparent;padding:2px 2px}
+.sheet{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;display:grid;gap:14px}
+.sheet .tbl{border:0;border-radius:0}
+.sheet table{min-width:820px;font-size:13px}
+.sheet th,.sheet td{padding:5px 8px;border:1px solid var(--line)}
+.sheet td.done{width:44px}
+.boxes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.sbox{border:1px solid var(--line);border-radius:6px;padding:8px;font-weight:600;overflow-wrap:anywhere}
+.sbox .cells{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px}
+.sbox .cells div{border:1px solid var(--line);height:46px;font-size:11px;font-weight:500;padding:2px 4px;color:var(--muted)}
+@media print{
+  :root{--bg:#fff!important;--panel:#fff!important;--ink:#000!important;--muted:#333!important;--line:#555!important;--off:#000!important;--def:#000!important}
+  header,.tabs,.tab:not(#p-sheet),.noprint{display:none!important}
+  #p-sheet{display:grid!important}
+  .wrap{max-width:none;padding:0}
+  .sheet{border:0;padding:0}.sheet .tbl{overflow:visible}
+  .sheet table{min-width:0;width:100%;font-size:10.5px}
+  .sheet th,.sheet td{padding:3px 5px}
+  @page{size:landscape;margin:10mm}
+}
+@media (max-width:520px){.prow{grid-template-columns:minmax(0,1fr) auto}.prow .pp{grid-column:1/-1;grid-row:2}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="title">Flag Football Rotation Board</h1>
+    <p class="sub" id="subtitle"></p>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" data-tab="game" id="tab-game">Game</button>
+    <button role="tab" data-tab="rotations" id="tab-rotations">Rotations</button>
+    <button role="tab" data-tab="sheet" id="tab-sheet">Print sheet</button>
+    <button role="tab" data-tab="team" id="tab-team">Team setup</button>
+  </div>
+
+  <!-- GAME -->
+  <section class="tab" id="p-game">
+    <div class="banner" id="banner" hidden>
+      <span>This is an example team. Enter your own players in Team setup.</span>
+      <button class="primary" id="go-team">Set up my team</button>
+    </div>
+
+    <div class="panel" aria-label="Scoreboard">
+      <div class="score">
+        <div class="team us">
+          <div class="top"><div class="tname" id="us-name"></div><div class="pts" id="us-pts">0</div></div>
+          <div class="sbtns" id="us-btns"></div>
+        </div>
+        <div class="team them">
+          <div class="top"><input class="tname" id="opp-name" aria-label="Opponent name" maxlength="30"><div class="pts" id="them-pts">0</div></div>
+          <div class="sbtns" id="them-btns"></div>
+        </div>
+      </div>
+      <div class="row">
+        <button id="undo">Undo last score</button>
+        <button class="primary" id="save-game">Save game and start next</button>
+        <button class="quiet" id="clear-score" data-confirm="Tap again to clear">Clear score</button>
+      </div>
+      <div class="games" id="games"></div>
+    </div>
+
+    <div class="panel" aria-label="Current rotation">
+      <div class="nav">
+        <div class="count" id="count"></div>
+        <div class="row">
+          <button id="prev" aria-label="Previous rotation">◀ Prev</button>
+          <button id="next" class="primary" aria-label="Next rotation">Next ▶</button>
+        </div>
+      </div>
+      <div id="lineup"></div>
+    </div>
+  </section>
+
+  <!-- ROTATIONS -->
+  <section class="tab" id="p-rotations" hidden>
+    <div>
+      <h2>All rotations</h2>
+      <p class="note" id="rot-note" style="margin-top:4px"></p>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div>
+      <h2>Playing time</h2>
+      <div class="tbl" style="margin-top:10px"><table>
+        <thead><tr><th>Player</th><th class="n" id="th-unit">Rotations</th><th class="n">Share</th><th class="n">Longest sit</th><th>Positions played</th></tr></thead>
+        <tbody id="tb"></tbody>
+      </table></div>
+      <p class="note" id="pt-note" style="margin-top:8px"></p>
+    </div>
+  </section>
+
+  <!-- PRINT SHEET -->
+  <section class="tab" id="p-sheet" hidden>
+    <div class="row noprint"><button class="primary" id="print" hidden>Print this sheet</button><span class="note" id="print-note"></span></div>
+    <div class="sheet" id="sheet"></div>
+  </section>
+
+  <!-- TEAM -->
+  <section class="tab" id="p-team" hidden>
+    <div class="err" id="team-err" hidden></div>
+
+    <div class="panel">
+      <h2>Team</h2>
+      <div class="fields">
+        <div class="field"><label for="f-team">Team name</label><input id="f-team" maxlength="30"></div>
+        <div class="field"><label for="f-format">Game format</label>
+          <select id="f-format">
+            <option value="5">5v5 (up to 12 players)</option>
+            <option value="6">6v6 (up to 14 players)</option>
+            <option value="7">7v7 (up to 16 players)</option>
+          </select><small>Changing the format resets the position names below.</small></div>
+        <div class="field"><label for="f-td">Points for a touchdown</label><input id="f-td" type="number" min="1" max="9" inputmode="numeric"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Positions</h2>
+      <p class="note" id="pos-note"></p>
+      <div class="fields">
+        <div class="field"><label for="f-off">Offense</label><input id="f-off" autocapitalize="characters" autocomplete="off"></div>
+        <div class="field"><label for="f-def">Defense</label><input id="f-def" autocapitalize="characters" autocomplete="off"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>How you rotate</h2>
+      <div class="fields">
+        <div class="field"><label for="f-mode">Players switch</label>
+          <select id="f-mode">
+            <option value="same">After offense and defense (same group plays both)</option>
+            <option value="split">After every series (offense and defense subbed separately)</option>
+          </select></div>
+        <div class="field"><label for="f-per">Series before each switch</label><input id="f-per" type="number" min="1" max="6" inputmode="numeric"><small id="per-help"></small></div>
+        <div class="field"><label for="f-rot">Rotations to plan</label><input id="f-rot" type="number" min="1" max="60" inputmode="numeric"></div>
+        <div class="field"><label for="f-sit">Longest sit in a row</label><input id="f-sit" type="number" min="1" max="6" inputmode="numeric"><small id="sit-help"></small></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="nav"><h2>Players <span id="pcount" class="sit"></span></h2><button class="primary" id="add-player">+ Add player</button></div>
+      <p class="note">For each player, list the positions they can play, best first. Positions near the end are used only when needed. Leave it blank and the player can go anywhere. If you only list offense spots, the player can go anywhere on defense, and the other way around.</p>
+      <div class="prow" aria-hidden="true"><span class="rhead">Name</span><span class="rhead pp">Positions, best first</span><span></span></div>
+      <div class="roster" id="roster"></div>
+    </div>
+
+    <div class="row">
+      <button id="shuffle">Shuffle the lineups</button>
+      <button class="quiet" id="blank" data-confirm="Tap again to clear the roster">Clear roster and start blank</button>
+    </div>
+    <div class="row" id="backup" hidden>
+      <button id="export">Save a backup file</button>
+      <button id="import-btn">Load a backup file</button>
+      <input type="file" id="import" accept="application/json,.json" hidden>
+      <span class="note" id="backup-msg"></span>
+    </div>
+    <p class="note">Your team, lineups and scores save in this browser on this device. Each coach gets their own copy. Changing positions, players or rotation settings rebuilds the lineups and clears any spots you changed by hand.</p>
+  </section>
+</div>
+
+<script id="logic">
+function parseList(str){
+  let t=String(str||"").split(/[,;\/\n]+/).map(s=>s.trim().toUpperCase()).filter(Boolean);
+  const out=[];for(const x of t)if(!out.includes(x))out.push(x);return out;
+}
+function parseWants(str,known){
+  let t=parseList(str);
+  // "Q CB1 S" typed with spaces instead of commas
+  if(t.length===1&&/\s/.test(t[0])&&!known.includes(t[0]))t=parseList(t[0].split(/\s+/).join(","));
+  return t;
+}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function nCk(n,k){let r=1;for(let i=1;i<=k;i++)r=r*(n-k+i)/i;return Math.round(r)}
+function pop(x){let c=0;while(x){x&=x-1;c++}return c}
+function combos(pool,F){const out=[],c=[];(function rec(s){if(c.length===F){out.push(c.slice());return}
+  for(let i=s;i<=pool.length-(F-c.length);i++){c.push(pool[i]);rec(i+1);c.pop()}})(0);return out}
+
+const FORMATS={5:{max:12,off:"Q, C, X, Y, Z",def:"S, CB1, CB2, R, LB"},
+  6:{max:14,off:"Q, C, X, Y, Z, RB",def:"S, CB1, CB2, R, LB1, LB2"},
+  7:{max:16,off:"Q, C, X, Y, Z, RB, TE",def:"S1, S2, CB1, CB2, R, LB1, LB2"}};
+function formatOf(S){const f=+S.format;return FORMATS[f]?f:5}
+function generate(S){
+  const OFF=parseList(S.off),DEF=parseList(S.def),known=OFF.concat(DEF);
+  const pl=[];S.players.forEach((p,i)=>{const name=String(p.name||"").trim();if(name)pl.push({i,name,want:parseWants(p.pos,known)})});
+  const N=pl.length,F=OFF.length,split=S.mode==="split";
+  const fmt=formatOf(S),MAXP=FORMATS[fmt].max,tag=fmt+"v"+fmt;
+  const base={OFF,DEF,pl,N,F,split,unknown:{},fmt,MAXP};
+  pl.forEach(p=>{const u=p.want.filter(x=>!known.includes(x));if(u.length)base.unknown[p.i]=u});
+  if(F!==fmt)return Object.assign(base,{error:tag+" needs "+fmt+" offense positions. You have "+F+"."});
+  if(DEF.length!==fmt)return Object.assign(base,{error:tag+" needs "+fmt+" defense positions. You have "+DEF.length+"."});
+  if(N>MAXP)return Object.assign(base,{error:tag+" allows up to "+MAXP+" players. You have "+N+". Remove "+(N-MAXP)+"."});
+  if(N<F)return Object.assign(base,{error:tag+" needs at least "+fmt+" players. You have "+N+". Add "+(F-N)+" more."});
+  const rank={o:[],d:[]};
+  pl.forEach((p,k)=>{const wo=p.want.filter(x=>OFF.includes(x)),wd=p.want.filter(x=>DEF.includes(x));
+    rank.o[k]=OFF.map(pos=>wo.length?wo.indexOf(pos):0);
+    rank.d[k]=DEF.map(pos=>wd.length?wd.indexOf(pos):0)});
+  for(const [side,L] of [["o",OFF],["d",DEF]])for(let i=0;i<F;i++)
+    if(!pl.some((p,k)=>rank[side][k][i]>=0))return Object.assign(base,{error:"Nobody is listed for "+L[i]+". Add "+L[i]+" to at least one player."});
+
+  const memo=new Map(),size=1<<F,full=size-1;
+  function assign(side,g){
+    const key=side+g.join(",");let m=memo.get(key);if(m!==undefined)return m;
+    const R=rank[side],best=new Float64Array(size).fill(Infinity),ch=new Int8Array(size);best[0]=0;
+    for(let mask=0;mask<full;mask++){if(best[mask]===Infinity)continue;const i=pop(mask);
+      for(let j=0;j<F;j++){if(mask>>j&1)continue;const r=R[g[j]][i];if(r<0)continue;
+        const c=best[mask]+r*r*3+r,nm=mask|1<<j;if(c<best[nm]){best[nm]=c;ch[nm]=j}}}
+    if(best[full]===Infinity){memo.set(key,null);return null}
+    const who=new Array(F);let mask=full;for(let i=F-1;i>=0;i--){const j=ch[mask];who[i]=g[j];mask^=1<<j}
+    m={cost:best[full],who};memo.set(key,m);return m;
+  }
+  const bench=N-F;
+  const wantSit=Math.max(1,Math.min(6,+S.maxSit||1));
+  const eff=bench===0?0:Math.max(wantSit,Math.ceil(bench/F));
+  const R=Math.max(1,Math.min(60,+S.rotations||1)),U=split?R*2:R;
+  const LIMIT=6000,all=nCk(N,F)<=LIMIT?combos(pl.map((p,k)=>k),F):null;
+  let K=F;while(K<N&&nCk(K+1,F)<=LIMIT)K++;
+
+  function run(seed){
+    const rnd=mulberry32(seed),plays=Array(N).fill(0),sit=Array(N).fill(0),on=Array(N).fill(0),units=[];
+    let viol=0,pref=0,longOn=0;
+    for(let u=0;u<U;u++){
+      const side=split?(u%2?"d":"o"):"od",minP=Math.min.apply(null,plays),cc=[],bc=[];let b0=0;
+      for(let k=0;k<N;k++){cc[k]=(plays[k]-minP)*40+(on[k]>=2?25*(on[k]-1):0)+rnd()*0.5;
+        bc[k]=sit[k]+1>eff?5000:sit[k]*8;b0+=bc[k]}
+      let list=all;
+      if(!list){const order=pl.map((p,k)=>k).sort((a,b)=>(bc[b]-cc[b])-(bc[a]-cc[a]));
+        list=combos(order.slice(0,K).sort((a,b)=>a-b),F)}
+      let best=null,bcst=Infinity;
+      const scan=L=>{for(const g of L){let c=b0;for(let x=0;x<F;x++)c+=cc[g[x]]-bc[g[x]];if(c>=bcst)continue;
+        const a1=side!=="d"?assign("o",g):null;if(side!=="d"&&!a1)continue;
+        const a2=side!=="o"?assign("d",g):null;if(side!=="o"&&!a2)continue;
+        c+=(a1?a1.cost:0)+(a2?a2.cost:0);if(c<bcst){bcst=c;best={g,o:a1&&a1.who,d:a2&&a2.who,pc:(a1?a1.cost:0)+(a2?a2.cost:0)}}}};
+      scan(list);
+      if(!best&&!all){const L=[];for(let t=0;t<LIMIT;t++){const idx=pl.map((p,k)=>k);
+        for(let x=0;x<F;x++){const y=x+Math.floor(rnd()*(N-x));const tmp=idx[x];idx[x]=idx[y];idx[y]=tmp}
+        L.push(idx.slice(0,F).sort((a,b)=>a-b))}scan(L)}
+      if(!best)return null;
+      units.push(best);pref+=best.pc;
+      const inG=new Set(best.g);
+      for(let k=0;k<N;k++){if(inG.has(k)){plays[k]++;on[k]++;sit[k]=0;if(on[k]>2&&bench>0)longOn++}else{sit[k]++;on[k]=0;if(sit[k]>eff)viol++}}
+    }
+    const spread=Math.max.apply(null,plays)-Math.min.apply(null,plays);
+    return {units,plays,score:viol*10000+spread*1000+longOn*15+pref};
+  }
+  let best=null;const t0=Date.now(),seed=(S.seed|0)||1;
+  for(let t=0;t<24;t++){const r=run(seed*7919+t*104729);if(r&&(!best||r.score<best.score))best=r;
+    if(!r&&t===0)break;if(Date.now()-t0>700)break}
+  if(!best)return Object.assign(base,{error:"These players can't fill every position at once. Give more players a second or third position."});
+
+  const rows=[],u=best.units,names=k=>pl[k].name;
+  const mk=(L,who)=>L.map((pos,i)=>({pos,k:who[i]}));
+  for(let r=0;r<R;r++){
+    if(split){const a=u[2*r],b=u[2*r+1];
+      rows.push({o:mk(OFF,a.o),d:mk(DEF,b.d),satO:pl.map((p,k)=>k).filter(k=>!a.g.includes(k)),satD:pl.map((p,k)=>k).filter(k=>!b.g.includes(k)),stay:[]})}
+    else{const a=u[r],nx=u[r+1];
+      rows.push({o:mk(OFF,a.o),d:mk(DEF,a.d),sat:pl.map((p,k)=>k).filter(k=>!a.g.includes(k)),stay:nx?a.g.filter(k=>nx.g.includes(k)):[]})}
+  }
+  const stats=pl.map((p,k)=>{let ls=0,c=0;const pos={};
+    u.forEach(x=>{if(x.g.includes(k)){c=0;[["o",OFF],["d",DEF]].forEach(([s,L])=>{if(x[s]){const i=x[s].indexOf(k);if(i>=0)pos[L[i]]=(pos[L[i]]||0)+1}})}else{c++;if(c>ls)ls=c}});
+    return {k,name:p.name,plays:best.plays[k],share:best.plays[k]/U,ls,
+      pos:Object.keys(pos).sort((a,b)=>pos[b]-pos[a]).map(x=>x+" "+pos[x]).join(", ")}});
+  return Object.assign(base,{rows,stats,R,U,eff,wantSit,bench,names:pl.map(p=>p.name)});
+}
+</script>
+
+<script>
+const KEY="ffboard.v1";
+const SAMPLE={example:true,team:"My Team",opp:"Opponent",td:6,format:5,
+  off:"Q, C, X, Y, Z",def:"S, CB1, CB2, R, LB",mode:"same",seriesPer:1,rotations:30,maxSit:1,seed:1,cur:0,
+  players:[
+    {name:"Avery",pos:"Q, CB1, CB2, S"},{name:"Blake",pos:"C, X, Y, LB"},{name:"Casey",pos:"Q, Z, C, R, S"},
+    {name:"Devon",pos:"Y, Z, X, S, R"},{name:"Emery",pos:"Y, X, CB1, CB2, R"},{name:"Frankie",pos:"C, X, LB, CB1"},
+    {name:"Gray",pos:"Z, Y, S, R"},{name:"Harper",pos:"X, Y, LB, CB1, CB2"},{name:"Indy",pos:""}],
+  log:[],games:[],ops:[]};
+const clone=o=>JSON.parse(JSON.stringify(o));
+let S=(()=>{try{const j=JSON.parse(localStorage.getItem(KEY));if(j&&Array.isArray(j.players))return Object.assign(clone(SAMPLE),j)}catch(e){}return clone(SAMPLE)})();
+if(!FORMATS[+S.format]){const n=parseList(S.off).length;S.format=FORMATS[n]?n:5}
+if(!Array.isArray(S.log))S.log=[];if(!Array.isArray(S.games))S.games=[];if(!Array.isArray(S.ops))S.ops=[];
+let G=null;
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+const num=(v,lo,hi,d)=>{v=parseInt(v,10);return isNaN(v)?d:Math.max(lo,Math.min(hi,v))};
+
+/* ---------- tabs ---------- */
+const TABS=["game","rotations","sheet","team"];
+function showTab(t){if(!TABS.includes(t))t="game";
+  TABS.forEach(x=>{$("p-"+x).hidden=x!==t;$("tab-"+x).setAttribute("aria-selected",x===t)});
+  try{sessionStorage.setItem("fftab",t)}catch(e){}}
+document.querySelector(".tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(b)showTab(b.dataset.tab)});
+$("go-team").onclick=()=>showTab("team");
+
+/* ---------- two-step confirm ---------- */
+function armConfirm(btn,fn){const label=btn.textContent;let timer=null;
+  btn.addEventListener("click",()=>{if(timer){clearTimeout(timer);timer=null;btn.textContent=label;fn();return}
+    btn.textContent=btn.dataset.confirm;timer=setTimeout(()=>{timer=null;btn.textContent=label},3500)})}
+
+/* ---------- score ---------- */
+const TYPES=[["td","TD"],["p1","1 PT"],["p2","2 PT"]];
+const val=t=>t==="td"?num(S.td,1,9,6):t==="p1"?1:2;
+function tally(side){const c={td:0,p1:0,p2:0};S.log.forEach(e=>{if(e.s===side)c[e.t]++});
+  c.total=c.td*val("td")+c.p1+c.p2*2;return c}
+function renderScore(){
+  $("us-name").textContent=S.team||"My Team";
+  if(document.activeElement!==$("opp-name"))$("opp-name").value=S.opp;
+  for(const side of ["us","them"]){const c=tally(side);$(side+"-pts").textContent=c.total;
+    $(side+"-btns").innerHTML=TYPES.map(([t,l])=>`<button data-s="${side}" data-t="${t}" aria-label="Add ${l} for ${side==="us"?"your team":"opponent"}"><b>${l}</b><span>+${val(t)} · ${c[t]} so far</span></button>`).join("")}
+  $("undo").disabled=!S.log.length;$("save-game").disabled=!S.log.length;
+  let w=0,l=0,t=0;S.games.forEach(g=>{g.us>g.them?w++:g.us<g.them?l++:t++});
+  $("games").innerHTML=S.games.length?`<div class="label">Saved games · ${w}–${l}${t?"–"+t:""}</div>`+
+    S.games.map((g,i)=>`<div class="game"><span>${esc(g.team)} <b>${g.us}</b>, ${esc(g.opp)} <b>${g.them}</b> <span class="sit">${esc(g.date||"")}</span></span><button data-del="${i}" aria-label="Remove this game">✕</button></div>`).join(""):"";
+}
+document.querySelector(".score").addEventListener("click",e=>{const b=e.target.closest("button[data-t]");if(!b)return;
+  S.log.push({s:b.dataset.s,t:b.dataset.t});save();renderScore()});
+$("undo").onclick=()=>{S.log.pop();save();renderScore()};
+$("opp-name").addEventListener("input",e=>{S.opp=e.target.value;save()});
+$("save-game").onclick=()=>{const a=tally("us"),b=tally("them");
+  S.games.unshift({team:S.team||"My Team",opp:(S.opp||"").trim()||"Opponent",us:a.total,them:b.total,date:new Date().toLocaleDateString(undefined,{month:"short",day:"numeric"})});
+  S.log=[];S.cur=0;S.opp="Opponent";save();renderScore();renderLineup()};
+armConfirm($("clear-score"),()=>{S.log=[];save();renderScore()});
+$("games").addEventListener("click",e=>{const b=e.target.closest("[data-del]");if(!b)return;S.games.splice(+b.dataset.del,1);save();renderScore()});
+
+/* ---------- lineup ---------- */
+const unitWord=()=>G&&G.split?"series":"rotations";
+function switchText(){const n=num(S.seriesPer,1,6,1);
+  if(S.mode==="split")return n===1?"Players switch after every series.":"Players switch after every "+n+" series.";
+  return n===1?"The same group plays one offensive and one defensive series, then switches.":"The same group plays "+n+" offensive and "+n+" defensive series, then switches."}
+function sideHtml(r,k){const isO=k==="o",slots=isO?r.o:r.d,sat=isO?r.satO:r.satD,on=slots.map(x=>x.k);
+  const benched=G.split?sat:r.sat,order=on.concat(G.pl.map((p,q)=>q).filter(q=>!on.includes(q)));
+  return `<div class="side ${k}"><div class="label">${isO?"Offense":"Defense"}</div>`+
+    slots.map((s,i)=>`<div class="slot"><b>${esc(s.pos)}</b><span><select data-s="${k}" data-i="${i}" aria-label="${esc(s.pos)} player">`+
+      order.map(q=>`<option value="${G.pl[q].i}"${q===s.k?" selected":""}>${esc(G.names[q])}${benched.includes(q)?" (sitting)":""}</option>`).join("")+
+      `</select>${r.stay.includes(s.k)?' <span class="tag">stays on</span>':""}</span></div>`).join("")+
+    (G.split&&sat.length?`<div class="sit">Sitting: ${sat.map(x=>esc(G.names[x])).join(", ")}</div>`:"")+`</div>`}
+/* apply the coach's hand changes, then work out who sits, who stays on and playing time */
+function finalize(){
+  if(!G||G.error)return;
+  const idx2k={};G.pl.forEach((p,k)=>{idx2k[p.i]=k});
+  G.rows.forEach(r=>{r.edited=false});
+  S.ops.forEach(op=>{const r=G.rows[op.r],k=idx2k[op.p];if(!r||k===undefined)return;
+    const slots=r[op.s];if(!slots||!slots[op.i])return;const cur=slots[op.i].k;if(cur===k)return;
+    const j=slots.findIndex(x=>x.k===k);
+    if(j>=0){slots[j].k=cur;slots[op.i].k=k}
+    else{slots[op.i].k=k;if(!G.split){const other=r[op.s==="o"?"d":"o"],m=other.findIndex(x=>x.k===cur);
+      if(m>=0&&!other.some(x=>x.k===k))other[m].k=k}}
+    r.edited=true});
+  const all=G.pl.map((p,k)=>k);
+  G.rows.forEach(r=>{const o=r.o.map(x=>x.k),d=r.d.map(x=>x.k);
+    r.satO=all.filter(k=>!o.includes(k));r.satD=all.filter(k=>!d.includes(k));r.sat=all.filter(k=>!o.includes(k)&&!d.includes(k))});
+  G.rows.forEach((r,i)=>{const n=G.rows[i+1];r.stay=(!G.split&&n)?all.filter(k=>!r.sat.includes(k)&&!n.sat.includes(k)):[]});
+  G.stats=G.pl.map((p,k)=>{let plays=0,ls=0,c=0;const pos={};
+    const unit=on=>{if(on){plays++;c=0}else{c++;if(c>ls)ls=c}};
+    G.rows.forEach(r=>{const a=r.o.find(x=>x.k===k),b=r.d.find(x=>x.k===k);
+      if(a)pos[a.pos]=(pos[a.pos]||0)+1;if(b)pos[b.pos]=(pos[b.pos]||0)+1;
+      if(G.split){unit(!!a);unit(!!b)}else unit(!!(a||b))});
+    return {k,name:p.name,plays,share:plays/G.U,ls,pos:Object.keys(pos).sort((x,y)=>pos[y]-pos[x]).map(x=>x+" "+pos[x]).join(", ")}});
+}
+function renderLineup(){
+  if(!G||G.error){$("count").textContent="No lineup yet";$("prev").disabled=$("next").disabled=true;
+    $("lineup").innerHTML=`<div class="err">${esc(G?G.error:"")} Fix it in Team setup.</div>`;return}
+  if(S.cur>=G.R)S.cur=G.R-1;if(S.cur<0)S.cur=0;
+  const r=G.rows[S.cur];
+  $("count").innerHTML=`Rotation ${S.cur+1} <small>of ${G.R}</small>`;
+  $("prev").disabled=S.cur===0;$("next").disabled=S.cur===G.R-1;
+  let h=`<div class="sides">${sideHtml(r,"o")}${sideHtml(r,"d")}</div>`;
+  if(!G.split){h+=`<p class="sit" style="margin:10px 0 0">${r.sat.length?"Sitting: <b>"+r.sat.map(x=>esc(G.names[x])).join(", ")+"</b>":"Nobody sits."}`+
+    (r.stay.length&&r.sat.length?`<br>Stays on for rotation ${S.cur+2}: <b>${r.stay.map(x=>esc(G.names[x])).join(", ")}</b>`:"")+`</p>`}
+  h+=`<p class="sit" style="margin:10px 0 0">Tap a name to change who plays that spot.${r.edited?' <span class="tag">changed by hand</span> <button id="reset-rot" style="padding:4px 10px;margin-left:6px">Undo changes to this rotation</button>':""}</p>`;
+  $("lineup").innerHTML=h;
+  document.querySelectorAll("#grid .card").forEach((c,i)=>c.classList.toggle("cur",i===S.cur));
+}
+$("lineup").addEventListener("change",e=>{const el=e.target.closest("select[data-s]");if(!el)return;
+  S.ops.push({r:S.cur,s:el.dataset.s,i:+el.dataset.i,p:+el.value});save();regen()});
+$("lineup").addEventListener("click",e=>{if(!e.target.closest("#reset-rot"))return;S.ops=S.ops.filter(o=>o.r!==S.cur);save();regen()});
+$("prev").onclick=()=>{if(S.cur>0){S.cur--;save();renderLineup()}};
+$("next").onclick=()=>{if(G&&!G.error&&S.cur<G.R-1){S.cur++;save();renderLineup()}};
+
+function renderRotations(){
+  if(!G||G.error){$("grid").innerHTML=`<div class="err">${esc(G?G.error:"")} Fix it in Team setup.</div>`;$("tb").innerHTML="";$("rot-note").textContent="";$("pt-note").textContent="";return}
+  $("rot-note").innerHTML=esc(switchText())+" Tap a rotation to open it on the Game tab."+(G.split?"":' <span class="tag">stays</span> marks players who stay on into the next rotation.');
+  $("grid").innerHTML=G.rows.map((r,i)=>{const line=(s)=>`<b>${esc(s.pos)}</b><span>${esc(G.names[s.k])}${r.stay.includes(s.k)?' <span class="tag">stays</span>':""}</span>`;
+    const sit=a=>a&&a.length?`<div class="s">Sit: ${a.map(x=>esc(G.names[x])).join(", ")}</div>`:"";
+    return `<button class="card" data-i="${i}"><h3>Rotation ${i+1}${r.edited?' <span class="tag">changed</span>':""}</h3><div class="mini"><div class="h o">Offense</div>${r.o.map(line).join("")}${G.split?sit(r.satO):""}<div class="h d">Defense</div>${r.d.map(line).join("")}${G.split?sit(r.satD):sit(r.sat)}</div></button>`}).join("");
+  $("th-unit").textContent=G.split?"Series":"Rotations";
+  $("tb").innerHTML=G.stats.map(s=>`<tr><td><b>${esc(s.name)}</b></td><td class="n">${s.plays} of ${G.U}</td><td class="n">${Math.round(s.share*100)}%</td><td class="n">${s.ls}</td><td>${esc(s.pos)}</td></tr>`).join("");
+  const lo=Math.min(...G.stats.map(s=>s.plays)),hi=Math.max(...G.stats.map(s=>s.plays));
+  let n=hi-lo<=1?"Playing time is as even as this roster size allows.":"Playing time is uneven because only a few players are listed for some positions. Give more players those positions to even it out.";
+  if(G.bench>0&&G.eff>G.wantSit)n+=" With "+G.bench+" players sitting each rotation, the shortest possible wait is "+G.eff+" "+unitWord()+" in a row.";
+  $("pt-note").textContent=n;
+}
+$("grid").addEventListener("click",e=>{const c=e.target.closest(".card");if(!c)return;S.cur=+c.dataset.i;save();renderLineup();showTab("game");window.scrollTo({top:0})});
+
+/* ---------- print sheet ---------- */
+function renderSheet(){
+  if(!G||G.error){$("sheet").innerHTML=`<div class="err">${esc(G?G.error:"")} Fix it in Team setup.</div>`;return}
+  const opp=(S.opp||"").trim(),oppName=opp&&opp!=="Opponent"?opp:"____________________";
+  const box=n=>`<div class="sbox">${esc(n)}<div class="cells"><div>TD</div><div>1 PT</div><div>2 PT</div><div>Final</div></div></div>`;
+  const nm=a=>a.map(x=>esc(G.names[x])).join(", ");
+  $("sheet").innerHTML=`<h2>${esc(S.team||"My Team")} vs ${esc(oppName)} &nbsp;·&nbsp; Date ____________</h2>`+
+    `<div class="boxes">${box(S.team||"My Team")}${box(oppName)}</div>`+
+    `<p class="note">${esc(switchText())} Tally each score in its box and check off rotations as you go.</p>`+
+    `<div class="tbl"><table><thead><tr><th>#</th>${G.OFF.map(p=>`<th>${esc(p)}</th>`).join("")}${G.DEF.map(p=>`<th>${esc(p)}</th>`).join("")}<th>Sitting</th><th>Done</th></tr></thead><tbody>`+
+    G.rows.map((r,i)=>`<tr><td class="n"><b>${i+1}</b></td>${r.o.concat(r.d).map(x=>`<td>${esc(G.names[x.k])}</td>`).join("")}<td>${G.split?"Off: "+nm(r.satO)+"<br>Def: "+nm(r.satD):nm(r.sat)}</td><td class="done"></td></tr>`).join("")+
+    `</tbody></table></div>`;
+}
+const HOSTED=!window.claude;
+if(HOSTED){$("print").hidden=false;$("print").onclick=()=>window.print();$("backup").hidden=false}
+else $("print-note").textContent="Printing works in the installed app, not in this preview.";
+
+/* ---------- team setup ---------- */
+function renderRoster(){
+  $("roster").innerHTML=S.players.map((p,i)=>`<div class="prow"><input id="pn-${i}" data-i="${i}" data-f="name" value="${esc(p.name)}" placeholder="Player name" aria-label="Player ${i+1} name" maxlength="24" autocomplete="off"><input class="pp" id="pp-${i}" data-i="${i}" data-f="pos" value="${esc(p.pos)}" placeholder="Any position" aria-label="Player ${i+1} positions" autocapitalize="characters" autocomplete="off"><button data-rm="${i}" aria-label="Remove player ${i+1}">✕</button><div class="w" id="pw-${i}" hidden></div></div>`).join("");
+}
+function fillForm(){$("f-format").value=String(formatOf(S));$("f-team").value=S.team;$("f-td").value=S.td;$("f-off").value=S.off;$("f-def").value=S.def;
+  $("f-mode").value=S.mode;$("f-per").value=S.seriesPer;$("f-rot").value=S.rotations;$("f-sit").value=S.maxSit}
+let timer=null;
+function changed(kind){S.example=false;if(kind!=="name")S.ops=[];save();clearTimeout(timer);timer=setTimeout(regen,250)}
+$("roster").addEventListener("input",e=>{const el=e.target;if(el.dataset.f){S.players[+el.dataset.i][el.dataset.f]=el.value;changed(el.dataset.f==="name"?"name":"")}});
+$("roster").addEventListener("click",e=>{const b=e.target.closest("[data-rm]");if(!b)return;S.players.splice(+b.dataset.rm,1);renderRoster();changed()});
+$("f-format").addEventListener("change",e=>{const f=+e.target.value;S.format=f;S.off=FORMATS[f].off;S.def=FORMATS[f].def;S.cur=0;fillForm();changed("")});
+$("add-player").onclick=()=>{if(S.players.length>=FORMATS[formatOf(S)].max)return;S.players.push({name:"",pos:""});renderRoster();changed();const el=$("pn-"+(S.players.length-1));if(el)el.focus()};
+[["f-team","team"],["f-off","off"],["f-def","def"],["f-mode","mode"]].forEach(([id,k])=>$(id).addEventListener("input",e=>{S[k]=e.target.value;changed(k==="team"?"name":"")}));
+[["f-td","td",1,9,6],["f-per","seriesPer",1,6,1],["f-rot","rotations",1,60,30],["f-sit","maxSit",1,6,1]].forEach(([id,k,lo,hi,d])=>{
+  $(id).addEventListener("input",e=>{S[k]=num(e.target.value,lo,hi,d);changed()});
+  $(id).addEventListener("blur",e=>{e.target.value=S[k]})});
+$("shuffle").onclick=()=>{S.seed=(S.seed|0)+1;S.cur=0;S.ops=[];save();regen()};
+$("export").onclick=()=>{try{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:"application/json"}));
+  a.download=(S.team||"team").replace(/[^a-z0-9]+/gi,"-").toLowerCase()+"-rotation-board.json";document.body.appendChild(a);a.click();a.remove();
+  $("backup-msg").textContent="Backup saved to your downloads."}catch(e){$("backup-msg").textContent="Could not save a backup on this device."}};
+$("import-btn").onclick=()=>$("import").click();
+$("import").addEventListener("change",e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();
+  rd.onload=()=>{try{const j=JSON.parse(rd.result);if(!j||!Array.isArray(j.players))throw 0;
+      S=Object.assign(clone(SAMPLE),j);["log","games","ops"].forEach(k=>{if(!Array.isArray(S[k]))S[k]=[]});
+      save();renderRoster();fillForm();regen();$("backup-msg").textContent="Backup loaded."}
+    catch(err){$("backup-msg").textContent="That file is not a Rotation Board backup."}
+    e.target.value=""};
+  rd.readAsText(f)});
+armConfirm($("blank"),()=>{S.ops=[];S.players=Array.from({length:formatOf(S)},()=>({name:"",pos:""}));S.example=false;S.cur=0;save();renderRoster();regen();const el=$("pn-0");if(el)el.focus()});
+
+/* ---------- regenerate + paint ---------- */
+function regen(){
+  G=generate(S);finalize();
+  $("banner").hidden=!S.example;
+  $("title").textContent=(S.team&&S.team!=="My Team"?S.team+" ":"Flag Football ")+"Rotation Board";
+  $("pos-note").textContent=G.fmt+"v"+G.fmt+" uses "+G.fmt+" positions on each side. Rename them to match your playbook, separated by commas, and keep "+G.fmt+" in each list.";
+  $("add-player").disabled=S.players.length>=G.MAXP;
+  $("subtitle").textContent=G.fmt+"v"+G.fmt+" · "+G.N+" player"+(G.N===1?"":"s")+" · "+switchText();
+  $("team-err").hidden=!G.error;$("team-err").textContent=G.error||"";
+  $("pcount").textContent="· "+G.N+" of "+G.MAXP+" allowed";
+  const mode=S.mode==="split",n=num(S.seriesPer,1,6,1);
+  $("per-help").textContent=mode?"A new group comes on after "+n+" series.":"Each group plays "+n+" offensive and "+n+" defensive series.";
+  $("sit-help").textContent=mode?"Counted in series.":"Counted in rotations.";
+  S.players.forEach((p,i)=>{const w=$("pw-"+i);if(!w)return;const u=G.unknown[i];w.hidden=!u;
+    w.textContent=u?"Not in your position lists: "+u.join(", ")+". Check the spelling or add it under Positions.":""});
+  renderScore();renderRotations();renderLineup();renderSheet();
+}
+renderRoster();fillForm();regen();
+let start="game";try{start=sessionStorage.getItem("fftab")||"game"}catch(e){}
+if(TABS.includes(location.hash.slice(1)))start=location.hash.slice(1);
+showTab(start);
+if(HOSTED&&"serviceWorker" in navigator&&(location.protocol==="https:"||location.hostname==="localhost"))navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script>
+</body>
+</html>
